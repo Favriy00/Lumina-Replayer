@@ -21,9 +21,29 @@ jobs:
           flutter create --org com.lumina --project-name lumina_replayer .
           unzip -o ../lumina-replayer-archivos.zip -d .
           flutter pub get
-          for f in $(find ~/.pub-cache -path "*on_audio_query_android*/android/build.gradle"); do
-            grep -q "namespace" "$f" || sed -i "/^android {/a\    namespace 'com.lucasjosino.on_audio_query'" "$f"
-          done
+          python3 - <<'PY'
+          import glob, os, re
+          pattern = os.path.expanduser('~/.pub-cache/hosted/pub.dev/on_audio_query_android-*/android/build.gradle')
+          for f in glob.glob(pattern):
+              s = open(f).read()
+              s = re.sub(r'compileOptions\s*\{[^}]*\}', '', s)
+              s = re.sub(r'kotlinOptions\s*\{[^}]*\}', '', s)
+              s = re.sub(r"\n\s*namespace\s+['\"][^'\"]*['\"]", '', s)
+              patch = "\n".join([
+                  "android {",
+                  "    namespace 'com.lucasjosino.on_audio_query'",
+                  "    compileOptions {",
+                  "        sourceCompatibility JavaVersion.VERSION_17",
+                  "        targetCompatibility JavaVersion.VERSION_17",
+                  "    }",
+                  "    kotlinOptions {",
+                  "        jvmTarget = '17'",
+                  "    }",
+              ]) + "\n"
+              s = re.sub(r'^android\s*\{', lambda m: patch, s, count=1, flags=re.M)
+              open(f, 'w').write(s)
+              print('Parcheado:', f)
+          PY
       - name: Compilar
         run: cd app && flutter build apk --release
       - uses: actions/upload-artifact@v4
